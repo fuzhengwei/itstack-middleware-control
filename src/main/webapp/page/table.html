@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>layui</title>
+    <meta name="renderer" content="webkit">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link rel="stylesheet" href="../lib/layui-v2.5.4/css/layui.css" media="all">
+    <link rel="stylesheet" href="../css/public.css" media="all">
+</head>
+<body>
+<div class="layuimini-container">
+    <div class="layuimini-main">
+
+        <fieldset class="layui-elem-field layuimini-search">
+            <legend>搜索信息</legend>
+            <div style="margin: 10px 10px 10px 10px">
+                <form class="layui-form layui-form-pane" action="">
+                    <div class="layui-form-item">
+                        <div class="layui-inline">
+                            <label class="layui-form-label">服务列表</label>
+                            <div class="layui-input-inline">
+                                <select lay-verify="required" id="schedulerServer">
+                                </select>
+                            </div>
+                        </div>
+                        <div class="layui-inline">
+                            <a class="layui-btn" lay-submit="" lay-filter="data-search-btn">搜索</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </fieldset>
+
+        <div class="layui-btn-group">
+            <button class="layui-btn data-add-btn">启动</button>
+            <button class="layui-btn layui-btn-danger data-delete-btn">关闭</button>
+        </div>
+        <table class="layui-hide" id="currentTableId" lay-filter="currentTableFilter"></table>
+        <script type="text/html" id="currentTableBar">
+            <a class="layui-btn layui-btn-xs data-count-edit" lay-event="edit">编辑</a>
+            <a class="layui-btn layui-btn-xs layui-btn-danger data-count-delete" lay-event="delete">删除</a>
+        </script>
+    </div>
+</div>
+<script src="../lib/layui-v2.5.4/layui.js" charset="utf-8"></script>
+<script src="../js/lay-config.js?v=1.0.4" charset="utf-8"></script>
+
+<script>
+    layui.use(['form', 'table'], function () {
+        var $ = layui.jquery,
+            form = layui.form,
+            table = layui.table;
+
+        $.ajax({
+              type: 'post',
+              url: '/api/queryDcsServerNodeList',
+              async: false,
+              success: function(res){
+                if(res.code== 0){
+                   $.each(res.data, function (index, item) {
+                         $('#schedulerServer').append(new Option(item.schedulerServerName, item.schedulerServerId));// 下拉菜单里添加元素
+                   });
+                   layui.form.render("select");
+                }
+              }
+        });
+
+        table.render({
+            elem: '#currentTableId',
+            url: '/api/queryDcsScheduleInfoList?schedulerServerId='+$("select[id=schedulerServer]").val(),
+            cols: [[
+                {type: "checkbox", width: 50, fixed: "left"},
+                {field:'ip',width:120, title:'IP'},
+                {field:'schedulerServerId',width:260, title:'服务ID'},
+                {field:'schedulerServerName',width:200, title:'服务名称'},
+                {field:'beanName',width:160, title:'对象名称'},
+                {field:'methodName',width:160, title:'方法名称'},
+                {field:'desc',width:120, title:'任务描述'},
+                {field:'cron',width:100, title:'计划'},
+                {field:'status',width:60, title:'状态', align: 'center', templet: function (d) {
+                    if(d.status == 0) return '停止';
+                    if(d.status == 1) return '运行';
+                    if(d.status == 2) return '宕机';
+                }}
+            ]],
+            limits: [10, 25, 50, 100],
+            limit: 15,
+            page: true
+        });
+
+        // 监听搜索操作
+        form.on('submit(data-search-btn)', function (data) {
+            //执行搜索重载
+            table.reload('currentTableId', {
+                url:  '/api/queryDcsScheduleInfoList?schedulerServerId='+$("select[id=schedulerServer]").val(),
+                page: {
+                    curr: 1
+                }
+            }, 'data');
+
+            return false;
+        });
+
+        // 监听启动操作
+        $(".data-add-btn").on("click", function () {
+            var checkTable = table.checkStatus('currentTableId')
+            if(null == checkTable) return;
+
+            var data = checkTable.data[0];
+
+            var instruct = {};
+            instruct.ip = data.ip;
+            instruct.schedulerServerId = data.schedulerServerId;
+            instruct.beanName = data.beanName;
+            instruct.methodName = data.methodName ;
+            instruct.cron = data.cron;
+            instruct.status = 1;
+
+            $.ajax({
+              type: 'post',
+              url: '/api/pushInstruct',
+              data: {
+                  json: JSON.stringify(instruct)
+              },
+              success: function(res){
+                if(res.code== 0){
+                   layer.msg('启动成功');
+                   table.reload('currentTableId');
+                }else {
+                  layer.msg('启动失败');
+                }
+              }
+            });
+
+        });
+
+        // 监听删除操作
+        $(".data-delete-btn").on("click", function () {
+           var checkTable = table.checkStatus('currentTableId')
+            if(null == checkTable) return;
+
+            var data = checkTable.data[0];
+
+            var instruct = {};
+            instruct.ip = data.ip;
+            instruct.schedulerServerId = data.schedulerServerId;
+            instruct.beanName = data.beanName;
+            instruct.methodName = data.methodName ;
+            instruct.cron = data.cron;
+            instruct.status = 0;
+
+            $.ajax({
+              type: 'post',
+              url: '/api/pushInstruct',
+              data: {
+                  json: JSON.stringify(instruct)
+              },
+              success: function(res){
+                if(res.code== 0){
+                   layer.msg('关闭成功');
+                   table.reload('currentTableId');
+                }else {
+                  layer.msg('关闭失败');
+                }
+              }
+            });
+        });
+
+        //监听表格复选框选择
+        table.on('checkbox(currentTableFilter)', function (obj) {
+            console.log(obj)
+        });
+
+        table.on('tool(currentTableFilter)', function (obj) {
+            var data = obj.data;
+            if (obj.event === 'edit') {
+                layer.alert('编辑行：<br>' + JSON.stringify(data))
+            } else if (obj.event === 'delete') {
+                layer.confirm('真的删除行么', function (index) {
+                    obj.del();
+                    layer.close(index);
+                });
+            }
+        });
+
+    });
+
+
+
+
+</script>
+
+
+</body>
+</html>

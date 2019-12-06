@@ -1,0 +1,13 @@
+server:
+  port: 7397
+
+spring:
+  mvc:
+    view:
+      prefix: /
+      suffix: .html
+
+itstack:
+  middleware:
+    scheudle:
+      zkAddress: 127.0.0.1:2181
